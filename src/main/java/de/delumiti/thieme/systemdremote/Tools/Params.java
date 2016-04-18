@@ -7,23 +7,30 @@ public class Params {
     private String hostname;
     private String user;
     private int port;
+    private boolean ask;
+    private String password;
 
     public Params() {
-        this("localhost", System.getProperty("user.name"), 22);
+        this("localhost", System.getProperty("user.name"), "", 22);
     }
 
     public Params(String hostname) {
-        this(hostname, System.getProperty("user.name"), 22);
+        this(hostname, System.getProperty("user.name"), "", 22);
     }
 
     public Params(String hostname, String user) {
-        this(hostname, user, 22);
+        this(hostname, user, "", 22);
     }
 
-    public Params(String hostname, String user, int port) {
+    public Params(String hostname, String user, String password) {
+        this(hostname, user, password, 22);
+    }
+
+    public Params(String hostname, String user, String password, int port) {
         this.hostname = hostname;
         this.user = user;
         this.port = port;
+        this.password = password;
     }
 
     /**
@@ -80,4 +87,40 @@ public class Params {
         this.user = user;
     }
 
+
+    /**
+     * Gets ask.
+     *
+     * @return Value of ask.
+     */
+    public boolean isAsk() {
+        return ask;
+    }
+
+    /**
+     * Sets new ask.
+     *
+     * @param ask New value of ask.
+     */
+    public void setAsk(boolean ask) {
+        this.ask = ask;
+    }
+
+    /**
+     * Sets new password.
+     *
+     * @param password New value of password.
+     */
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    /**
+     * Gets password.
+     *
+     * @return Value of password.
+     */
+    public String getPassword() {
+        return password;
+    }
 }

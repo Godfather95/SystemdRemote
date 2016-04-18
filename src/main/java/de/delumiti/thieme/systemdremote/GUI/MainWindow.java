@@ -1,10 +1,17 @@
 package de.delumiti.thieme.systemdremote.GUI;
 
-import com.jcraft.jsch.JSch;
+import de.delumiti.thieme.systemdremote.SSH;
+import de.delumiti.thieme.systemdremote.Tools.Service;
 
 import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
 
 /**
  * Created by denni on 15.04.2016.
@@ -13,9 +20,9 @@ public class MainWindow {
     public JPanel mainPanel;
     private JTabbedPane tabbedPane;
     private JPanel pnlConnection;
-    private JTextField textField1;
-    private JTextField textField2;
-    private JPasswordField passwordField1;
+    private JTextField txtHostname;
+    private JTextField txtUsername;
+    private JPasswordField txtPassword;
     private JLabel lblHostname;
     private JLabel lblUsername;
     private JLabel lblPassword;
@@ -24,11 +31,31 @@ public class MainWindow {
     private JPanel pnlStatus;
     private JLabel lblIp;
     private JLabel lblOs;
-    private JLabel lblIpValue;
-    private JLabel lblOsValue;
-    private JTree trServices;
+    private JLabel lblConnectionStatus;
+    private JList lstServices;
+    private JLabel lblName;
+    private JLabel lblDescription;
+    private JLabel lblState;
+    private JTextField txtName;
+    private JTextField txtDescription;
+    private JTextField txtState;
+    private JTextArea txtServiceStatus;
+    private JLabel lblServiceStatus;
+    private JButton btnStart;
+    private JButton btnReload;
+    private JButton btnStop;
+    private JButton btnRestart;
 
-    public MainWindow() {
+    private final SSH ssh;
+    private ArrayList<Service> services;
+
+    public MainWindow(SSH sshP) {
+        ssh = sshP;
+        services = new ArrayList<Service>();
+
+        txtHostname.setText(ssh.getParams().getHostname());
+        txtUsername.setText(ssh.getParams().getUser());
+        txtPassword.setText(ssh.getParams().getPassword());
         btnConnect.addActionListener(new ActionListener() {
             /**
              * Invoked when an action occurs.
@@ -37,15 +64,135 @@ public class MainWindow {
              */
             @Override
             public void actionPerformed(ActionEvent e) {
-
+                if (btnConnect.getText().equals("Connect")) {
+                    ssh.connect();
+                    if (ssh.getSession().isConnected()) {
+                        lblConnectionStatus.setText("Connected to: " + ssh.getSession().getUserName() + "@" + ssh.getSession().getHost());
+                        lblConnectionStatus.setForeground(Color.GREEN);
+                        try {
+                            lblIp.setText("IP: " + InetAddress.getByName(ssh.getSession().getHost()).getHostAddress());
+                        } catch (UnknownHostException e1) {
+                            e1.printStackTrace();
+                        }
+                        lblOs.setText("OS: " + ssh.getRemoteOS());
+                        btnConnect.setText("Disconnect");
+                        services = ssh.getSystemdServices();
+                        DefaultListModel<String> model = new DefaultListModel<String>();
+                        for (Service service: services) {
+                            model.addElement(service.getName());
+                        }
+                        lstServices.setModel(model);
+                    }
+                } else if (btnConnect.getText().equals("Disconnect")) {
+                    ssh.disconnect();
+                    if (!ssh.getSession().isConnected()) {
+                        lblConnectionStatus.setText("");
+                        lblConnectionStatus.setForeground(Color.BLACK);
+                        lblIp.setText("");
+                        lblOs.setText("");
+                        btnConnect.setText("Connect");
+                    }
+                }
+            }
+        });
+        lstServices.addListSelectionListener(new ListSelectionListener() {
+            /**
+             * Called whenever the value of the selection changes.
+             *
+             * @param e the event that characterizes the change.
+             */
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                if (!e.getValueIsAdjusting()) {
+                    int selectedIndex = lstServices.getSelectedIndex();
+                    Service service = services.get(selectedIndex);
+                    txtName.setText(service.getName());
+                    txtDescription.setText(service.getDescription());
+                    txtState.setText(service.getState());
+                    String status = ssh.getServiceState(service.getName());
+                    txtServiceStatus.setText(status);
+                    txtDescription.setText(status.split("\n")[0].split(" - ")[1]);
+                    if (ssh.getServiceActiveState(service.getName())) {
+                        txtName.setBackground(Color.GREEN);
+                    } else {
+                        txtName.setBackground(Color.RED);
+                    }
+                }
+            }
+        });
+        btnStart.addActionListener(new ActionListener() {
+            /**
+             * Invoked when an action occurs.
+             *
+             * @param e
+             */
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.err.println(ssh.execute("sudo systemctl start "+ lstServices.getSelectedValue()));
+                services = ssh.getSystemdServices();
+                DefaultListModel<String> model = new DefaultListModel<String>();
+                for (Service service: services) {
+                    model.addElement(service.getName());
+                }
+                lstServices.setModel(model);
+            }
+        });
+        btnStop.addActionListener(new ActionListener() {
+            /**
+             * Invoked when an action occurs.
+             *
+             * @param e
+             */
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.err.println(ssh.execute("sudo systemctl stop "+ lstServices.getSelectedValue()));
+                services = ssh.getSystemdServices();
+                DefaultListModel<String> model = new DefaultListModel<String>();
+                for (Service service: services) {
+                    model.addElement(service.getName());
+                }
+                lstServices.setModel(model);
+            }
+        });
+        btnReload.addActionListener(new ActionListener() {
+            /**
+             * Invoked when an action occurs.
+             *
+             * @param e
+             */
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.err.println(ssh.execute("sudo systemctl reload "+ lstServices.getSelectedValue()));
+                services = ssh.getSystemdServices();
+                DefaultListModel<String> model = new DefaultListModel<String>();
+                for (Service service: services) {
+                    model.addElement(service.getName());
+                }
+                lstServices.setModel(model);
+            }
+        });
+        btnRestart.addActionListener(new ActionListener() {
+            /**
+             * Invoked when an action occurs.
+             *
+             * @param e
+             */
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.err.println(ssh.execute("sudo systemctl restart "+ lstServices.getSelectedValue()));
+                services = ssh.getSystemdServices();
+                DefaultListModel<String> model = new DefaultListModel<String>();
+                for (Service service: services) {
+                    model.addElement(service.getName());
+                }
+                lstServices.setModel(model);
             }
         });
     }
 
     private void createUIComponents() {
-        trServices = new JTree();
-        trServices.removeAll();
-        trServices.setModel(null);
+        DefaultListModel<String> model = new DefaultListModel<String>();
+        lstServices = new JList<String>(model);
     }
 
 
@@ -56,15 +203,6 @@ public class MainWindow {
      */
     public void setPnlStatus(JPanel pnlStatus) {
         this.pnlStatus = pnlStatus;
-    }
-
-    /**
-     * Sets new lblIpValue.
-     *
-     * @param lblIpValue New value of lblIpValue.
-     */
-    public void setLblIpValue(JLabel lblIpValue) {
-        this.lblIpValue = lblIpValue;
     }
 
     /**
@@ -86,12 +224,12 @@ public class MainWindow {
     }
 
     /**
-     * Sets new textField2.
+     * Sets new txtUsername.
      *
-     * @param textField2 New value of textField2.
+     * @param txtUsername New value of txtUsername.
      */
-    public void setTextField2(JTextField textField2) {
-        this.textField2 = textField2;
+    public void setTxtUsername(JTextField txtUsername) {
+        this.txtUsername = txtUsername;
     }
 
     /**
@@ -131,15 +269,6 @@ public class MainWindow {
     }
 
     /**
-     * Gets lblOsValue.
-     *
-     * @return Value of lblOsValue.
-     */
-    public JLabel getLblOsValue() {
-        return lblOsValue;
-    }
-
-    /**
      * Gets mainPanel.
      *
      * @return Value of mainPanel.
@@ -149,12 +278,12 @@ public class MainWindow {
     }
 
     /**
-     * Gets passwordField1.
+     * Gets txtPassword.
      *
-     * @return Value of passwordField1.
+     * @return Value of txtPassword.
      */
-    public JPasswordField getPasswordField1() {
-        return passwordField1;
+    public JPasswordField getTxtPassword() {
+        return txtPassword;
     }
 
     /**
@@ -176,15 +305,6 @@ public class MainWindow {
     }
 
     /**
-     * Gets lblIpValue.
-     *
-     * @return Value of lblIpValue.
-     */
-    public JLabel getLblIpValue() {
-        return lblIpValue;
-    }
-
-    /**
      * Sets new lblUsername.
      *
      * @param lblUsername New value of lblUsername.
@@ -194,12 +314,12 @@ public class MainWindow {
     }
 
     /**
-     * Gets textField2.
+     * Gets txtUsername.
      *
-     * @return Value of textField2.
+     * @return Value of txtUsername.
      */
-    public JTextField getTextField2() {
-        return textField2;
+    public JTextField getTxtUsername() {
+        return txtUsername;
     }
 
     /**
@@ -239,12 +359,12 @@ public class MainWindow {
     }
 
     /**
-     * Sets new passwordField1.
+     * Sets new txtPassword.
      *
-     * @param passwordField1 New value of passwordField1.
+     * @param txtPassword New value of txtPassword.
      */
-    public void setPasswordField1(JPasswordField passwordField1) {
-        this.passwordField1 = passwordField1;
+    public void setTxtPassword(JPasswordField txtPassword) {
+        this.txtPassword = txtPassword;
     }
 
     /**
@@ -311,47 +431,83 @@ public class MainWindow {
     }
 
     /**
-     * Gets trServices.
+     * Gets txtHostname.
      *
-     * @return Value of trServices.
+     * @return Value of txtHostname.
      */
-    public JTree getTrServices() {
-        return trServices;
+    public JTextField getTxtHostname() {
+        return txtHostname;
     }
 
     /**
-     * Gets textField1.
+     * Sets new txtHostname.
      *
-     * @return Value of textField1.
+     * @param txtHostname New value of txtHostname.
      */
-    public JTextField getTextField1() {
-        return textField1;
+    public void setTxtHostname(JTextField txtHostname) {
+        this.txtHostname = txtHostname;
     }
 
     /**
-     * Sets new textField1.
+     * Sets new lblConnectionStatus.
      *
-     * @param textField1 New value of textField1.
+     * @param lblConnectionStatus New value of lblConnectionStatus.
      */
-    public void setTextField1(JTextField textField1) {
-        this.textField1 = textField1;
+    public void setLblConnectionStatus(JLabel lblConnectionStatus) {
+        this.lblConnectionStatus = lblConnectionStatus;
     }
 
     /**
-     * Sets new trServices.
+     * Gets lblConnectionStatus.
      *
-     * @param trServices New value of trServices.
+     * @return Value of lblConnectionStatus.
      */
-    public void setTrServices(JTree trServices) {
-        this.trServices = trServices;
+    public JLabel getLblConnectionStatus() {
+        return lblConnectionStatus;
     }
 
     /**
-     * Sets new lblOsValue.
+     * Gets ssh.
      *
-     * @param lblOsValue New value of lblOsValue.
+     * @return Value of ssh.
      */
-    public void setLblOsValue(JLabel lblOsValue) {
-        this.lblOsValue = lblOsValue;
+    public SSH getSsh() {
+        return ssh;
+    }
+
+    /**
+     * Sets new services.
+     *
+     * @param services New value of services.
+     */
+    public void setServices(ArrayList<Service> services) {
+        this.services = services;
+    }
+
+    /**
+     * Gets services.
+     *
+     * @return Value of services.
+     */
+    public ArrayList<Service> getServices() {
+        return services;
+    }
+
+    /**
+     * Gets lstServices.
+     *
+     * @return Value of lstServices.
+     */
+    public JList getLstServices() {
+        return lstServices;
+    }
+
+    /**
+     * Sets new lstServices.
+     *
+     * @param lstServices New value of lstServices.
+     */
+    public void setLstServices(JList lstServices) {
+        this.lstServices = lstServices;
     }
 }
